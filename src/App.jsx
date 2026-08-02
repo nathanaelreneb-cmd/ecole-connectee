@@ -653,3 +653,160 @@ function StudentModal({ onClose, onSave }) {
 }
 
     
+function UpgradeModal({ onClose }) {
+  const [copied, setCopied] = useState(false);
+  const copyNumber = () => {
+    navigator.clipboard?.writeText(ORANGE_MONEY_NUMBER);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+  return (
+    <Modal title="Limite de l'essai gratuit atteinte" onClose={onClose}>
+      <div className="space-y-5">
+        <p className="text-sm" style={{ color: COLORS.inkSoft }}>
+          L'essai gratuit permet d'enregistrer jusqu'à 10 élèves. Choisis une formule pour continuer :
+        </p>
+        <div className="space-y-2.5">
+          {PRICING_TIERS.map((t) => (
+            <div key={t.name} className="rounded-xl p-4 flex items-center justify-between" style={{ border: `1px solid ${COLORS.line}` }}>
+              <div>
+                <div className="font-semibold" style={{ color: COLORS.ink }}>{t.name}</div>
+                <div className="text-xs" style={{ color: COLORS.inkSoft }}>{t.desc}</div>
+              </div>
+              <div className="text-right">
+                <div className="font-bold" style={{ fontFamily: "'IBM Plex Mono', monospace", color: COLORS.primary }}>{fmt(t.price, "GNF")}</div>
+                <div className="text-xs" style={{ color: COLORS.inkSoft }}>/ mois</div>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="rounded-xl p-4" style={{ background: COLORS.primarySoft }}>
+          <div className="flex items-center gap-2 mb-2">
+            <Smartphone size={16} style={{ color: COLORS.primary }} />
+            <span className="text-sm font-semibold" style={{ color: COLORS.primary }}>Paiement par Orange Money</span>
+          </div>
+          <p className="text-xs mb-3" style={{ color: COLORS.inkSoft }}>
+            Envoie le montant de la formule choisie à ce numéro, puis contacte l'équipe pour activer ton abonnement.
+          </p>
+          <button onClick={copyNumber} className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg" style={{ background: "#fff" }}>
+            <span className="font-bold" style={{ fontFamily: "'IBM Plex Mono', monospace", color: COLORS.ink }}>{ORANGE_MONEY_NUMBER}</span>
+            <span className="text-xs font-medium flex items-center gap-1" style={{ color: COLORS.primary }}><Copy size={13} /> {copied ? "Copié !" : "Copier"}</span>
+          </button>
+        </div>
+        <button onClick={onClose} className="w-full py-3 rounded-lg font-semibold" style={{ background: COLORS.ink, color: "#fff" }}>Fermer</button>
+      </div>
+    </Modal>
+  );
+}
+
+function LinkParentModal({ student, parents, onClose, onSave }) {
+  const [parentId, setParentId] = useState(student.parent_id || "");
+  return (
+    <Modal title={`Lier un parent à ${student.full_name}`} onClose={onClose}>
+      <div className="space-y-4">
+        {parents.length === 0 ? (
+          <p className="text-sm" style={{ color: COLORS.inkSoft }}>Aucun parent n'a encore créé de compte pour cette école. Ils doivent d'abord s'inscrire avec le code de l'école.</p>
+        ) : (
+          <div>
+            <FieldLabel>Choisir le parent</FieldLabel>
+            <select value={parentId} onChange={(e) => setParentId(e.target.value)} className="w-full px-3 py-2.5 rounded-lg outline-none" style={inputStyle}>
+              <option value="">— Aucun —</option>
+              {parents.map((p) => <option key={p.user_id} value={p.user_id}>{p.full_name}{p.phone ? ` · ${p.phone}` : ""}</option>)}
+            </select>
+          </div>
+        )}
+        <button onClick={() => onSave(parentId)} className="w-full py-3 rounded-lg font-semibold mt-2" style={{ background: COLORS.ink, color: "#fff" }}>Enregistrer la liaison</button>
+      </div>
+    </Modal>
+  );
+}
+function PaymentModal({ students, currency, onClose, onSave }) {
+  const [studentId, setStudentId] = useState(students[0]?.id || "");
+  const [amount, setAmount] = useState("");
+  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const submit = async () => { if (!studentId || !amount) return; await onSave({ student_id: studentId, amount: parseFloat(amount), date }); onClose(); };
+  return (
+    <Modal title="Enregistrer un paiement" onClose={onClose}>
+      <div className="space-y-4">
+        <div><FieldLabel>Élève</FieldLabel><select value={studentId} onChange={(e) => setStudentId(e.target.value)} className="w-full px-3 py-2.5 rounded-lg outline-none" style={inputStyle}>{students.map((s) => <option key={s.id} value={s.id}>{s.full_name} ({s.class_name})</option>)}</select></div>
+        <div><FieldLabel>Montant ({currency})</FieldLabel><input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} className="w-full px-3 py-2.5 rounded-lg outline-none" style={inputStyle} /></div>
+        <div><FieldLabel>Date</FieldLabel><input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-full px-3 py-2.5 rounded-lg outline-none" style={inputStyle} /></div>
+        <button onClick={submit} className="w-full py-3 rounded-lg font-semibold mt-2" style={{ background: COLORS.ink, color: "#fff" }}>Enregistrer</button>
+      </div>
+    </Modal>
+  );
+}
+function LessonModal({ onClose, onSave }) {
+  const [mode, setMode] = useState("texte"); // texte | photo
+  const [className, setClassName] = useState("");
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [dueDate, setDueDate] = useState("");
+  const [file, setFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState("");
+
+  const submit = async () => {
+    setError("");
+    if (!className.trim() || !title.trim()) { setError("Renseigne au moins la classe et un titre."); return; }
+    let attachment_url = null;
+    let attachment_name = null;
+    if (mode === "photo" && file) {
+      setUploading(true);
+      const path = `${Date.now()}-${file.name}`;
+      const { error: upErr } = await supabase.storage.from("homework-attachments").upload(path, file);
+      setUploading(false);
+      if (upErr) { setError("Échec de l'envoi du fichier: " + upErr.message); return; }
+      const { data } = supabase.storage.from("homework-attachments").getPublicUrl(path);
+      attachment_url = data.publicUrl;
+      attachment_name = file.name;
+    }
+    await onSave({ class_name: className.trim(), title: title.trim(), description, due_date: dueDate || null, attachment_url, attachment_name });
+    onClose();
+  };
+
+  return (
+    <Modal title="Publier un devoir" onClose={onClose}>
+      <div className="space-y-4">
+        <div className="flex gap-2">
+          {[["texte", "Écrire le devoir"], ["photo", "Envoyer une photo/fichier"]].map(([key, label]) => (
+            <button key={key} onClick={() => setMode(key)} className="flex-1 py-2.5 rounded-lg text-sm font-medium" style={{ background: mode === key ? COLORS.ink : "#fff", color: mode === key ? "#fff" : COLORS.inkSoft, border: `1px solid ${mode === key ? COLORS.ink : COLORS.line}` }}>
+              {label}
+            </button>
+          ))}
+        </div>
+        <div><FieldLabel>Classe</FieldLabel><input value={className} onChange={(e) => setClassName(e.target.value)} placeholder="Ex: CM2" className="w-full px-3 py-2.5 rounded-lg outline-none" style={inputStyle} /></div>
+        <div><FieldLabel>Titre</FieldLabel><input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Ex: Exercices de conjugaison p.24" className="w-full px-3 py-2.5 rounded-lg outline-none" style={inputStyle} /></div>
+        {mode === "texte" ? (
+          <div><FieldLabel>Description du devoir</FieldLabel><textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4} className="w-full px-3 py-2.5 rounded-lg outline-none" style={inputStyle} /></div>
+        ) : (
+          <div>
+            <FieldLabel>Photo ou fichier depuis ton téléphone</FieldLabel>
+            <input type="file" accept="image/*,.pdf" capture="environment" onChange={(e) => setFile(e.target.files?.[0] || null)} className="w-full px-3 py-2.5 rounded-lg outline-none text-sm" style={inputStyle} />
+            <p className="text-xs mt-1.5" style={{ color: COLORS.inkSoft }}>Prends une photo du sujet ou choisis une image/PDF dans ta galerie.</p>
+          </div>
+        )}
+        <div><FieldLabel>À faire pour le (optionnel)</FieldLabel><input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className="w-full px-3 py-2.5 rounded-lg outline-none" style={inputStyle} /></div>
+        {error && <div className="text-sm" style={{ color: COLORS.negative }}>{error}</div>}
+        <button onClick={submit} disabled={uploading} className="w-full py-3 rounded-lg font-semibold mt-2 flex items-center justify-center gap-2" style={{ background: COLORS.ink, color: "#fff" }}>
+          {uploading && <Loader2 className="animate-spin" size={16} />}
+          Publier
+        </button>
+      </div>
+    </Modal>
+  );
+}
+function AnnouncementModal({ onClose, onSave }) {
+  const [title, setTitle] = useState("");
+  const [message, setMessage] = useState("");
+  const submit = async () => { if (!title.trim() || !message.trim()) return; await onSave({ title: title.trim(), message: message.trim() }); onClose(); };
+  return (
+    <Modal title="Nouvelle annonce" onClose={onClose}>
+      <div className="space-y-4">
+        <div><FieldLabel>Titre</FieldLabel><input value={title} onChange={(e) => setTitle(e.target.value)} className="w-full px-3 py-2.5 rounded-lg outline-none" style={inputStyle} /></div>
+        <div><FieldLabel>Message</FieldLabel><textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={4} className="w-full px-3 py-2.5 rounded-lg outline-none" style={inputStyle} /></div>
+        <button onClick={submit} className="w-full py-3 rounded-lg font-semibold mt-2" style={{ background: COLORS.primary, color: "#fff" }}>Publier aux parents</button>
+      </div>
+    </Modal>
+  );
+        }
