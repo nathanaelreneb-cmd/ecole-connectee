@@ -652,37 +652,4 @@ function StudentModal({ onClose, onSave }) {
   );
 }
 
-function UpgradeModal({ onClose }) {
-  const [copied, setCopied] = useState(false);
-  const copyNumber = () => {
-    navigator.clipboard?.writeText(ORANGE_MONEY_NUMBER);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-  return (
-    <Modal title="Limite de l'essai gratuit atteinte" onClose={onClose}>
-      <div className="space-y-5">
-        <p className="text-sm" style={{ color: COLORS.inkSoft }}>
-          L'essai gratuit permet d'enregistrer jusqu'à 10 élèves. Choisis une formule pour continuer :
-        </p>
-        <div className="space-y-2.5">
-          {PRICING_TIERS.map((t) => (
-            <div key={t.name} className="rounded-xl p-4 flex items-center justify-between" style={{ border: `1px solid ${COLORS.line}` }}>
-              <div>
-                <div className="font-semibold" style={{ color: COLORS.ink }}>{t.name}</div>
-                <div className="text-xs" style={{ color: COLORS.inkSoft }}>{t.desc}</div>
-              </div>
-              <div className="text-right">
-                <div className="font-bold" style={{ fontFamily: "'IBM Plex Mono', monospace", color: COLORS.primary }}>{fmt(t.price, "GNF")}</div>
-                <div className="text-xs" style={{ color: COLORS.inkSoft }}>/ mois</div>
-              </div>
-            </div>
-          ))}
-        </div>
-        <div className="rounded-xl p-4" style={{ background: COLORS.primarySoft }}>
-          <div className="flex items-center gap-2 mb-2">
-            <Smartphone size={16} style={{ color: COLORS.primary }} />
-            <span className="text-sm font-semibold" style={{ color: COLORS.primary }}>Paiement par Orange Money</span>
-          </div>
-          <p className="text-xs mb-3" style={{ color: COLORS.inkSoft }}>
-            Envoie le montant de la formule choisie à ce numéro, puis contacte l'é
+    
