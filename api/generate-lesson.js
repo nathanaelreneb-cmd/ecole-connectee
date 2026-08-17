@@ -48,7 +48,7 @@ export default async function handler(req, res) {
 
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
-    .select("role, active, full_name")
+    .select("role, active, full_name, school_id")
     .eq("user_id", userData.user.id)
     .maybeSingle();
 
@@ -63,7 +63,7 @@ export default async function handler(req, res) {
   }
 
   // ---------- 2. Valider les données envoyées ----------
-  const { subject, className, lessonTitle, textbook, page, language } = req.body || {};
+  const { subject, className, lessonTitle, textbook, page, competenceSpecifique, language } = req.body || {};
   if (!lessonTitle || !String(lessonTitle).trim()) {
     return res.status(400).json({ error: "Le titre de la leçon est requis." });
   }
@@ -72,8 +72,8 @@ export default async function handler(req, res) {
 
   const systemPrompt =
     lang === "en"
-      ? `You are an experienced teaching assistant helping a teacher in Guinea, West Africa, prepare a class lesson. Always answer in clear, practical English suited for a classroom teacher. Respond ONLY with valid JSON, no markdown code fences, no commentary outside the JSON.`
-      : `Tu es un assistant pédagogique expérimenté qui aide un enseignant en Guinée (Afrique de l'Ouest) à préparer un cours. Réponds toujours en français clair et pratique, adapté à un enseignant de terrain. Réponds UNIQUEMENT avec un JSON valide, sans balises markdown, sans commentaire en dehors du JSON.`;
+      ? `You are an experienced teaching assistant helping a teacher in Guinea, West Africa, prepare a class lesson, following the competency-based approach ("approche par compétences") used in Guinea's official curriculum brochures. Always answer in clear, practical English suited for a classroom teacher. If a specific competency is given, make sure the objectives directly serve it. Respond ONLY with valid JSON, no markdown code fences, no commentary outside the JSON.`
+      : `Tu es un assistant pédagogique expérimenté qui aide un enseignant en Guinée (Afrique de l'Ouest) à préparer un cours, en suivant l'approche par compétences utilisée dans les brochures-programmes officielles guinéennes. Réponds toujours en français clair et pratique, adapté à un enseignant de terrain. Si une compétence spécifique est fournie, assure-toi que les objectifs de la leçon servent directement cette compétence. Réponds UNIQUEMENT avec un JSON valide, sans balises markdown, sans commentaire en dehors du JSON.`;
 
   const jsonShape = `{
   "objectifs": ["objectif 1", "objectif 2"],
@@ -94,6 +94,7 @@ ${lang === "en" ? "Class" : "Classe"}: ${className || "—"}
 ${lang === "en" ? "Lesson title" : "Titre de la leçon"}: ${lessonTitle}
 ${lang === "en" ? "Textbook" : "Manuel/livre"}: ${textbook || "—"}
 ${lang === "en" ? "Page" : "Page"}: ${page || "—"}
+${lang === "en" ? "Specific competency (curriculum)" : "Compétence spécifique (brochure-programme)"}: ${competenceSpecifique || "—"}
 
 ${
   lang === "en"
@@ -161,7 +162,30 @@ ${
       return res.status(502).json({ error: "Réponse IA illisible, réessaie.", raw: rawText });
     }
 
-    return res.status(200).json(parsed);
+    // ---------- 3. Sauvegarder dans l'historique (best-effort, n'empêche pas la réponse si ça échoue) ----------
+    let historyId = null;
+    try {
+      const { data: savedRow } = await supabase
+        .from("ai_lesson_history")
+        .insert({
+          school_id: profile.school_id,
+          teacher_id: userData.user.id,
+          subject: subject || null,
+          class_name: className || null,
+          lesson_title: lessonTitle,
+          textbook: textbook || null,
+          page: page || null,
+          competence_specifique: competenceSpecifique || null,
+          result: parsed,
+        })
+        .select("id")
+        .maybeSingle();
+      if (savedRow) historyId = savedRow.id;
+    } catch (e) {
+      // On ignore silencieusement une erreur de sauvegarde : la génération reste utile même sans historique.
+    }
+
+    return res.status(200).json({ ...parsed, _historyId: historyId });
   } catch (e) {
     return res.status(500).json({ error: "Erreur serveur : " + (e.message || String(e)) });
   }
